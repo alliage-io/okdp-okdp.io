@@ -7,4 +7,5 @@ The admin guide shows how to manage an OKDP cluster for an administrator. It exp
 
 1. [Project administration](/en/admin-guide/project-administration): Explains how to manage and monitor projects.
 2. [Connections and external secrets management](/en/admin-guide/connections-and-external-secrets-management): Shows how to create, delete, and edit connections, external secrets, and external secret stores.
-3. [Service deployment](/en/admin-guide/service-deployment): Instructions for the deployment of OKDP services.
+3. [Service deployment](/en/admin-guide/service-deployment): Instructions for the deployment of OKDP services, from the console or as files in the deployments Git repository.
+4. [Upgrade from KuboCD](/en/admin-guide/upgrade-from-kubocd): What changes for a platform deployed with KuboCD, and the order of operations.
