@@ -5,26 +5,85 @@ description: How to create, delete and edit connections, external secret stores 
 
 ## Connections
 
-A connection is a Kubernetes object brought by the Kubocd controller. It serves as a binding object between two services or to a storage or database provider.
+A connection binds a service to another service or to a storage or database provider. It follows a contract, which fixes its fields:
 
-Here is an example in YAML format of a connection:
+| Contract          | Used for                              | Main fields                                                            | Secret fields            |
+| ----------------- | ------------------------------------- | ---------------------------------------------------------------------- | ------------------------ |
+| `s3`              | S3 object storage                     | `apiUrl`, `internalUrl`, `consoleUrl`, `bucket`, `region`, `pathStyle` | `accessKey`, `secretKey` |
+| `database-server` | SQL database                          | `engine`, `driver`, `host`, `port`, `dbName`, `sslMode`, `tls`         | `username`, `password`   |
+| `hive`            | Thrift connection to a Hive Metastore | `thriftUri`                                                            |                          |
+| `iceberg-catalog` | Iceberg REST catalog (Polaris)        | `uri`, `internalUri`, `realm`                                          |                          |
+| `trino`           | Trino                                 | `url`, `uri`, `internalUri`, `catalogs`                                |                          |
+
+Non-secret fields are written in the deployments Git repository. Secret fields never are: they stay in a Kubernetes Secret of the project namespace, named by `secretRef`, which the services read at runtime.
+
+There are two kinds of connections.
+
+### External connections
+
+An external connection is a file of the project in the deployments repository, `projects/<project>/connections/<name>.yaml`. Here is an example of a connection to the S3 store of the platform:
 
 ```yaml
-apiVersion: kubocd.kubotal.io/v1alpha1
-kind: Connection
-metadata:
-  name: demo-storage
-  namespace: demo
-spec:
-  contract: s3
-  description: Platform S3 store, shared with this project
-  values:
+connections:
+  demo-storage:
+    contract: s3
     apiUrl: https://storage-default-api.okdp.sandbox
-    internalUrl: http://storage-s3.default.svc.cluster.local:8333
+    internalUrl: http://default-storage-s3.default.svc.cluster.local:8333
     region: us-east-1
     pathStyle: true
-    secretRef: creds-seaweedfs-s3
+    secretRef:
+      name: creds-seaweedfs-s3
 ```
+
+And a connection to a PostgreSQL database:
+
+```yaml
+connections:
+  demo-db-hive:
+    contract: database-server
+    engine: postgresql
+    driver: org.postgresql.Driver
+    host: demo-pg-rw.demo.svc.cluster.local
+    port: 5432
+    dbName: hive
+    sslMode: disable
+    secretRef:
+      name: demo-pg-app
+```
+
+The name of the connection is the file name. An instance uses it when it lists it under `connections` in its `instance.yaml` and names it in a parameter (for example `storage: demo-storage`): the file is then one of the values layers of the release. `s3` and `database-server` connections are always external connections, since their providers live in other namespaces or serve several databases.
+
+### Connections to other instances
+
+Hive Metastore, Polaris and Trino instances provide a connection themselves (contracts `hive`, `iceberg-catalog` and `trino`). Another instance of the same project uses it by naming the provider's release `<project>-<instance>` in a parameter, without any connection file: Trino reaches the Hive Metastore instance `hive` of project `demo` with `metastore: demo-hive`. The address follows a fixed convention, for example `thrift://demo-hive-hive-metastore.demo.svc:9083`.
+
+These connections are listed in the instance descriptor. Every OKDP service chart renders a ConfigMap `<release>-okdp` in the project namespace, which the console reads to discover instances, their URL, their usage notes and the connections they provide:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-hive-okdp
+  namespace: demo
+  labels:
+    okdp.io/instance: demo-hive
+    okdp.io/service: hive-metastore
+    okdp.io/provides-hive: "true"
+    app.kubernetes.io/instance: demo-hive
+data:
+  service: hive-metastore
+  version: 4.0.1-1.0.1
+  url: ""
+  usage: |
+    ...
+  outputs.yaml: |
+    - name: demo-hive
+      contract: hive
+      values:
+        thriftUri: thrift://demo-hive-hive-metastore.demo.svc:9083
+```
+
+The descriptor works identically under Flux and Argo CD. A reference to another instance is not checked when the chart is rendered: a wrong release name shows up at runtime. The console only offers existing instances.
 
 In the user interface, the connection section is found under `Project Panel` -> `Connections` and brings you to the following page:
 
@@ -43,23 +102,25 @@ And three OKDP services:
 - `Iceberg Rest Catalog` being a connection to Polaris
 - `Trino`
 
-Choosing between these different types determines the other parameters to enter in order to establish a connection.
+Choosing between these different types determines the other parameters to enter in order to establish a connection. The last three are only needed for a service outside the project; within the project, the console offers the instances directly.
 
 ### Creating connections
 
-To create a connection with the user interface, you click on `+ Add connection`, give it a name, and choose a type. Then fill the mandatory fields and click on `Create`.
+To create a connection with the user interface, you click on `+ Add connection`, give it a name, and choose a type. The name is a DNS label (lowercase letters, digits and `-`). Then fill the mandatory fields and click on `Create`.
 
 ![Connection creation](../../assets/connection-creation.png)
 
-Clicking on the connection gives you access to its details. The three dots on the right-hand side of the connection line give you the choice to edit or remove the connection.
+The console commits the connection file to Git. The credentials you enter go to a Secret `<name>-credentials` of the project namespace, created by the console; you may name an existing Secret instead.
 
-Note: Created connections through the command line are also displayed in the user interface and may be manipulated from there on.
+Clicking on the connection gives you access to its details. The three dots on the right-hand side of the connection line give you the choice to edit or remove the connection. A connection that an instance still uses cannot be removed: the console names the instances concerned.
+
+Note: Connection files committed directly to Git are also displayed in the user interface and may be manipulated from there on.
 
 ![Connection details](../../assets/connection-details.png)
 
 ## Add a secret store and add external secrets
 
-The OKDP control plane enables you to access secrets stored inside a secret store and produce a Kubernetes secret. The underlying component is the External Secrets Operator, which must be installed. In order to accomplish this task, a connection to a secret store must first be established. Then, you are able to synchronize and access the desired secret within the secret store to use for OKDP services.
+The OKDP control plane enables you to access secrets stored inside a secret store and produce a Kubernetes secret. The underlying component is the External Secrets Operator, which must be installed. In order to accomplish this task, a connection to a secret store must first be established. Then, you are able to synchronize and access the desired secret within the secret store to use for OKDP services. Unlike connections, secret stores and external secrets are not written to Git: the console creates the `SecretStore` and `ExternalSecret` objects directly in the project namespace.
 
 ### Add a secret store
 
@@ -84,7 +145,7 @@ Then, if you click on `Test Connection` to test the communication between the OK
 Here are the details of the secret store in YAML format that was just created, displayed with the `kubectl get secretStore -n demo vault-main -o yaml` command:
 
 ```yaml
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: SecretStore
 metadata:
   creationTimestamp: "2026-09-03T08:10:37Z"
@@ -101,7 +162,7 @@ spec:
           key: token
           name: vault-main-credentials
       path: secret/
-      server: http://vault-main.vault.svc.cluster.local:8200
+      server: http://vault-vault.vault.svc.cluster.local:8200
       version: v2
 status:
   capabilities: ReadWrite
@@ -135,7 +196,7 @@ Then click on `CREATE`.
 The `externalSecret` object has been created as follows:
 
 ```yaml
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   creationTimestamp: "2026-09-03T13:49:51Z"
