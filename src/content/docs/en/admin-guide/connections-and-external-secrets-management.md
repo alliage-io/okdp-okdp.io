@@ -48,7 +48,7 @@ connections:
     dbName: hive
     sslMode: disable
     secretRef:
-      name: demo-pg-app
+      name: creds-hive-metastore-db
 ```
 
 The name of the connection is the file name. An instance uses it when it lists it under `connections` in its `instance.yaml` and names it in a parameter (for example `storage: demo-storage`): the file is then one of the values layers of the release. `s3` and `database-server` connections are always external connections, since their providers live in other namespaces or serve several databases.

@@ -15,7 +15,8 @@ The reference layout, its scripts and the byte-exact specification of every file
 platform/
   platform-values.yaml            # {global: {okdp: {...}}}: first values layer of every release
   catalog.yaml                    # console service catalog
-  kustomization.yaml              # publishes ConfigMap okdp-releases/okdp-platform-values (both engines)
+  connections/<name>.yaml         # {connections: {<name>: {...}}}, external connections of platform components
+  kustomization.yaml              # generated: platform values + platform connection ConfigMaps (both engines)
   components/<NN>-<name>/         # platform components; NN = layer 00, 10, 20 or 30
     instance.yaml  values.yaml    #   written by hand
     helmrelease.yaml  kustomization.yaml   # generated (Flux)
@@ -70,21 +71,21 @@ warehouseBucket: hive
 
 `project.yaml` describes the project: `{name: demo, description: ...}`, where `name` equals the directory name.
 
-Platform components (`platform/components/<NN>-<name>/`) have the same two files, with `connections: []`; their `project` is the target namespace and the release is still `<project>-<name>`. A layer starts when every component of the previous non-empty layer is ready.
+Platform components (`platform/components/<NN>-<name>/`) have the same two files; their `project` is the target namespace, the release is still `<project>-<name>`, and their `connections` name files of `platform/connections/` (for example `keycloak-db`, the database of Keycloak), whose `secretRef` names a Secret of the component's namespace. A layer starts when every component of the previous non-empty layer is ready.
 
 ## Values layers
 
 Every release receives three layers, in this exact order under both engines (later layers win, maps merge, lists are replaced, as with `helm -f a -f b`):
 
 1. `platform/platform-values.yaml`
-2. each `projects/<project>/connections/<name>.yaml` listed in `connections`, in that order
-3. `projects/<project>/services/<instance>/values.yaml`
+2. each connection file listed in `connections`, in that order: `projects/<project>/connections/<name>.yaml` for a service, `platform/connections/<name>.yaml` for a platform component
+3. the `values.yaml` of the instance
 
 ## Generated files (Flux)
 
-Flux needs a `HelmRelease` and an `OCIRepository` per instance, and ConfigMaps carrying the values layers. They are generated from the `instance.yaml` files by `scripts/render-flux.sh` (bash 4+ and yq v4), never edited by hand: `helmrelease.yaml` and `kustomization.yaml` of each instance, `projects/<project>/kustomization.yaml`, and `flux/components.yaml` for platform components. The console writes byte-identical files, and `scripts/check.sh` fails when a generated file is not up to date. Argo CD ignores these files.
+Flux needs a `HelmRelease` and an `OCIRepository` per instance, and ConfigMaps carrying the values layers. They are generated from the `instance.yaml` files by `scripts/render-flux.sh` (bash 4+ and yq v4), never edited by hand: `helmrelease.yaml` and `kustomization.yaml` of each instance, `projects/<project>/kustomization.yaml`, and, for platform administrators, `platform/kustomization.yaml` and `flux/components.yaml`. The console writes byte-identical files, and `scripts/check.sh` fails when a generated file is not up to date. Argo CD ignores these files.
 
-The HelmReleases, OCIRepositories and values ConfigMaps (`okdp-platform-values`, `conn-<project>-<name>`, `values-<project>-<instance>`) all live in namespace `okdp-releases`; the Helm release is stored in the target namespace.
+The HelmReleases, OCIRepositories and values ConfigMaps (`okdp-platform-values`, `conn-<project>-<name>`, `okdp-platform-conn-<name>`, `values-<project>-<instance>`) all live in namespace `okdp-releases`; the Helm release is stored in the target namespace.
 
 ## Install with Flux
 

@@ -15,7 +15,8 @@ L'organisation de référence, ses scripts et la spécification exacte, à l'oct
 platform/
   platform-values.yaml            # {global: {okdp: {...}}} : première couche de valeurs de chaque release
   catalog.yaml                    # catalogue de services de la console
-  kustomization.yaml              # publie le ConfigMap okdp-releases/okdp-platform-values (deux moteurs)
+  connections/<name>.yaml         # {connections: {<name>: {...}}}, connexions externes des composants de plateforme
+  kustomization.yaml              # généré : ConfigMaps des valeurs et des connexions de la plateforme (deux moteurs)
   components/<NN>-<name>/         # composants de plateforme ; NN = couche 00, 10, 20 ou 30
     instance.yaml  values.yaml    #   écrits à la main
     helmrelease.yaml  kustomization.yaml   # générés (Flux)
@@ -70,21 +71,21 @@ warehouseBucket: hive
 
 `project.yaml` décrit le projet : `{name: demo, description: ...}`, où `name` est égal au nom du répertoire.
 
-Les composants de plateforme (`platform/components/<NN>-<name>/`) ont les deux mêmes fichiers, avec `connections: []` ; leur `project` est le namespace cible et la release reste `<project>-<name>`. Une couche démarre lorsque tous les composants de la couche non vide précédente sont prêts.
+Les composants de plateforme (`platform/components/<NN>-<name>/`) ont les deux mêmes fichiers ; leur `project` est le namespace cible, la release reste `<project>-<name>`, et leurs `connections` désignent des fichiers de `platform/connections/` (par exemple `keycloak-db`, la base de données de Keycloak), dont le `secretRef` désigne un secret du namespace du composant. Une couche démarre lorsque tous les composants de la couche non vide précédente sont prêts.
 
 ## Couches de valeurs
 
 Chaque release reçoit trois couches, dans cet ordre exact avec les deux moteurs (les couches suivantes l'emportent, les maps sont fusionnées, les listes sont remplacées, comme avec `helm -f a -f b`) :
 
 1. `platform/platform-values.yaml`
-2. chaque `projects/<project>/connections/<name>.yaml` listé dans `connections`, dans cet ordre
-3. `projects/<project>/services/<instance>/values.yaml`
+2. chaque fichier de connexion listé dans `connections`, dans cet ordre : `projects/<project>/connections/<name>.yaml` pour un service, `platform/connections/<name>.yaml` pour un composant de plateforme
+3. le `values.yaml` de l'instance
 
 ## Fichiers générés (Flux)
 
-Flux a besoin d'une `HelmRelease` et d'un `OCIRepository` par instance, et de ConfigMaps portant les couches de valeurs. Ils sont générés à partir des fichiers `instance.yaml` par `scripts/render-flux.sh` (bash 4+ et yq v4), jamais modifiés à la main : `helmrelease.yaml` et `kustomization.yaml` de chaque instance, `projects/<project>/kustomization.yaml`, et `flux/components.yaml` pour les composants de plateforme. La console écrit des fichiers identiques à l'octet près, et `scripts/check.sh` échoue lorsqu'un fichier généré n'est pas à jour. Argo CD ignore ces fichiers.
+Flux a besoin d'une `HelmRelease` et d'un `OCIRepository` par instance, et de ConfigMaps portant les couches de valeurs. Ils sont générés à partir des fichiers `instance.yaml` par `scripts/render-flux.sh` (bash 4+ et yq v4), jamais modifiés à la main : `helmrelease.yaml` et `kustomization.yaml` de chaque instance, `projects/<project>/kustomization.yaml`, et, pour les administrateurs de la plateforme, `platform/kustomization.yaml` et `flux/components.yaml`. La console écrit des fichiers identiques à l'octet près, et `scripts/check.sh` échoue lorsqu'un fichier généré n'est pas à jour. Argo CD ignore ces fichiers.
 
-Les HelmReleases, les OCIRepositories et les ConfigMaps de valeurs (`okdp-platform-values`, `conn-<project>-<name>`, `values-<project>-<instance>`) se trouvent tous dans le namespace `okdp-releases` ; la release Helm est stockée dans le namespace cible.
+Les HelmReleases, les OCIRepositories et les ConfigMaps de valeurs (`okdp-platform-values`, `conn-<project>-<name>`, `okdp-platform-conn-<name>`, `values-<project>-<instance>`) se trouvent tous dans le namespace `okdp-releases` ; la release Helm est stockée dans le namespace cible.
 
 ## Installer avec Flux
 
