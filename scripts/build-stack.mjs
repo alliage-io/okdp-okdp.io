@@ -17,18 +17,23 @@
 /**
  * Builds the OKDP stack inventory consumed by /stack/<version>.
  *
- * Reads the KuboCD Package manifests from the two package repositories and
- * flattens them into a single data file. Presentation metadata that cannot be
- * derived (display names, project URLs) lives in stack-metadata.yaml.
+ * Reads the OKDP Helm charts of the two chart repositories (`Chart.yaml`,
+ * `vendor.yaml` and the wrapper's own values and templates), plus the platform
+ * components of the okdp-sandbox deployments repository that install an
+ * upstream chart directly, and flattens them into a single data file.
+ * Presentation metadata that cannot be derived (display names, project URLs)
+ * lives in stack-metadata.yaml.
  *
  * This runs when a release is cut, not during `astro build`. Its output is
  * committed, so the site build stays offline and every version change shows up
  * as a reviewable diff.
  *
- * Clones the package repos from OKDP unless --repo names a local checkout.
+ * Clones the repositories from OKDP unless --repo names a local checkout.
+ * OKDP 1.0 (src/data/stack/okdp-1-0.yaml) was generated from KuboCD packages
+ * by an earlier version of this script: do not regenerate it with this one.
  *
- *   node scripts/build-stack.mjs --stack 1.0
- *   node scripts/build-stack.mjs --stack 1.0 --repo platform-packages=../platform-packages
+ *   node scripts/build-stack.mjs --stack 1.1
+ *   node scripts/build-stack.mjs --stack 1.1 --repo platform-packages=../platform-packages
  */
 
 import { execFileSync } from "node:child_process";
@@ -47,20 +52,29 @@ import { parse, stringify, Scalar } from "yaml";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
+// Chart repositories: one OKDP chart per `packages/<group>/<name>/Chart.yaml`,
+// published to `registry`. The deployments repository (okdp-sandbox) only
+// contributes the platform components installed from an upstream chart as is
+// (no OKDP wrapper): their `instance.yaml` names the chart and its version.
 const REPOS = {
   "platform-packages": {
     url: "https://github.com/OKDP/platform-packages.git",
-    registry: "quay.io/okdp/platform-packages",
+    registry: "quay.io/okdp/platform-charts",
     sections: { services: "data-services", system: "control-plane" },
   },
   "sandbox-dependencies": {
     url: "https://github.com/OKDP/sandbox-dependencies.git",
-    registry: "quay.io/okdp/sandbox-dependencies",
+    registry: "quay.io/okdp/sandbox-charts",
     sections: { services: "dependencies", system: "dependencies" },
+  },
+  "okdp-sandbox": {
+    url: "https://github.com/OKDP/okdp-sandbox.git",
+    components: "gitops/platform/components",
+    section: "dependencies",
   },
 };
 
-const OKDP_CHART_PREFIXES = ["quay.io/okdp/charts/"];
+const OKDP_CHART_PREFIXES = ["quay.io/okdp/"];
 const OKDP_IMAGE_PREFIXES = ["quay.io/okdp/"];
 
 // ---------------------------------------------------------------- arguments
@@ -192,17 +206,6 @@ function checkLocal(name, path, url) {
   }
 }
 
-function walk(dir) {
-  const found = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) found.push(...walk(path));
-    else if (entry.name.endsWith(".yaml") || entry.name.endsWith(".yml"))
-      found.push(path);
-  }
-  return found;
-}
-
 // --------------------------------------------------------------- extraction
 
 /**
@@ -226,43 +229,85 @@ function qualify(repository, registry) {
 }
 
 /**
- * Pulls chart and image coordinates out of one module. A module's `values` is
- * a Go template rather than YAML, so images are matched textually.
+ * Whether a chart labels its objects `okdp.io/protected: "true"` (deletion
+ * refused by the ValidatingAdmissionPolicies of the tools component). Only
+ * the label set to true counts: tools itself names the label in its policy.
  */
-function readModule(module) {
-  const source = module.source ?? {};
-  const entry = { name: module.name, charts: [], images: [] };
+const PROTECTED = /okdp\.io\/protected["']?\s*:\s*["']?true/;
 
-  if (source.helmRepository) {
-    const { url, chart, version } = source.helmRepository;
-    entry.charts.push({
-      name: chart,
-      version: String(version),
-      repository: url,
-      origin: "upstream",
-    });
-  }
-  if (source.oci) {
-    const { repository, tag } = source.oci;
-    entry.charts.push({
-      name: repository.split("/").pop(),
-      version: String(tag),
-      repository,
-      origin: isOkdpChart(repository) ? "okdp" : "upstream",
-    });
-  }
-  if (source.local) {
-    // Plumbing charts vendored in the package repo (secret generation, OIDC
-    // client registration). Never the component itself.
-    entry.charts.push({
-      name: module.name,
-      version: null,
-      repository: null,
-      origin: "local",
-    });
-  }
+/** `oci://host/path` and `https://host/path` alike, for prefix checks. */
+const bare = (ref) => (ref ?? "").replace(/^[a-z]+:\/\//, "");
 
-  const values = typeof module.values === "string" ? module.values : "";
+function chartOrigin(repository) {
+  if (!repository) return "local";
+  if (repository.startsWith("file://")) return "local";
+  return isOkdpChart(bare(repository)) ? "okdp" : "upstream";
+}
+
+/**
+ * One module per upstream chart the wrapper renders: the charts listed in
+ * `vendor.yaml` (rendered with computed values, the former KuboCD modules)
+ * and the plain Helm dependencies other than the okdp-lib library.
+ */
+function readModules(dir, chart) {
+  const modules = [];
+  const vendorPath = join(dir, "vendor.yaml");
+  if (exists(vendorPath)) {
+    const vendor = parse(readFileSync(vendorPath, "utf8")) ?? {};
+    for (const entry of vendor.charts ?? []) {
+      const local = String(entry.repository ?? "").startsWith("file://");
+      modules.push({
+        name: entry.name,
+        charts: [
+          {
+            name: entry.chart ?? entry.name,
+            version: entry.version == null ? null : String(entry.version),
+            repository: local ? null : bare(entry.repository),
+            origin: chartOrigin(entry.repository),
+          },
+        ],
+        images: [],
+      });
+    }
+  }
+  for (const dep of chart.dependencies ?? []) {
+    if (dep.name === "okdp-lib") continue;
+    const local = String(dep.repository ?? "").startsWith("file://");
+    modules.push({
+      name: dep.alias ?? dep.name,
+      charts: [
+        {
+          name: dep.name,
+          version: dep.version == null ? null : String(dep.version),
+          repository: local ? null : bare(dep.repository),
+          origin: chartOrigin(dep.repository),
+        },
+      ],
+      images: [],
+    });
+  }
+  return modules;
+}
+
+/** The wrapper's own files: values.yaml and templates/, never vendor/. */
+function ownFiles(dir) {
+  const files = [join(dir, "values.yaml")];
+  const templates = join(dir, "templates");
+  if (exists(templates)) {
+    for (const entry of readdirSync(templates, { withFileTypes: true })) {
+      if (entry.isFile()) files.push(join(templates, entry.name));
+    }
+  }
+  return files.filter(exists).sort();
+}
+
+/**
+ * Image coordinates set by the wrapper (its values and the value defines of
+ * templates/_values.tpl, the former module `values:`), matched textually.
+ * Images left at the upstream chart defaults are not listed, as before.
+ */
+function readImages(text) {
+  const images = [];
   // Charts split the host from the path (`registry:` + `repository:`, the
   // Bitnami convention) as often as they inline it. Dropping the host silently
   // turns a quay.io path into a Docker Hub one that does not exist.
@@ -272,35 +317,24 @@ function readModule(module) {
   // server and the CloudNativePG operator among them. Intervening keys are
   // allowed, but not another `repository:`, so two adjacent image blocks can
   // never be paired across.
-  for (const [, registry, repository, tag] of values.matchAll(
+  for (const [, registry, repository, tag] of text.matchAll(
     /(?:registry:\s*"?([\w.:-]+)"?\s*\n\s*)?repository:\s*"?([\w./-]+)"?[ \t]*\n(?:[ \t]*(?!repository:|tag:)[\w.-]+:[^\n]*\n){0,4}\s*tag:\s*"?([\w.-]+)"?/g,
   )) {
-    entry.images.push({
+    images.push({
       repository: qualify(repository, registry),
       tag: String(tag),
     });
   }
-  for (const [, ref] of values.matchAll(
+  for (const [, ref] of text.matchAll(
     /image:\s*"?([\w./-]+:[\w.-]+)"?\s*$/gm,
   )) {
     const index = ref.lastIndexOf(":");
-    entry.images.push({
+    images.push({
       repository: qualify(ref.slice(0, index)),
       tag: ref.slice(index + 1),
     });
   }
-
-  // A chart published as OCI also matches the repository/tag pattern above.
-  const chartRefs = new Set(entry.charts.map((chart) => chart.repository));
-  entry.images = dedupe(
-    entry.images.filter((image) => !chartRefs.has(image.repository)),
-    (image) => `${image.repository}:${image.tag}`,
-  );
-  entry.charts = dedupe(
-    entry.charts,
-    (chart) => `${chart.repository}:${chart.version}`,
-  );
-  return entry;
+  return dedupe(images, (image) => `${image.repository}:${image.tag}`);
 }
 
 function dedupe(items, key) {
@@ -393,75 +427,200 @@ function upstreamVersionOf(pkg, primary, override) {
 
 // ------------------------------------------------------------------ collect
 
+/** `packages/<group>/<name>/Chart.yaml`, the OKDP charts of one repository. */
+function chartDirs(root) {
+  const dirs = [];
+  if (!exists(root)) return dirs;
+  for (const group of readdirSync(root, { withFileTypes: true })) {
+    if (!group.isDirectory()) continue;
+    for (const entry of readdirSync(join(root, group.name), {
+      withFileTypes: true,
+    })) {
+      const dir = join(root, group.name, entry.name);
+      if (entry.isDirectory() && exists(join(dir, "Chart.yaml"))) {
+        dirs.push({ group: group.name, dir });
+      }
+    }
+  }
+  return dirs.sort((a, b) => a.dir.localeCompare(b.dir));
+}
+
+function componentOf(fields, meta, warnings) {
+  if (
+    !meta.upstreamVersion &&
+    fields.upstream.version !== fields.upstream.derived
+  ) {
+    warnings.push(
+      `${fields.id}: derived upstream ${fields.upstream.version} from ${fields.upstream.source}, ` +
+        `version suggests ${fields.upstream.derived}`,
+    );
+  }
+  return {
+    id: fields.id,
+    name: meta.name ?? fields.id,
+    section: fields.section,
+    upstreamVersion: fields.upstream.version,
+    upstreamVersionSource: fields.upstream.source,
+    package: fields.package,
+    provenance: provenanceOf(fields.primary),
+    protected: fields.protected,
+    description: meta.description ?? firstSentence(fields.description),
+    primaryChart: fields.primary.chart,
+    primaryImage: fields.primary.image,
+    charts: fields.modules.flatMap((module) => module.charts),
+    images: fields.modules.flatMap((module) => module.images),
+    modules: fields.modules.filter(
+      (module) => module.charts.length || module.images.length,
+    ),
+    links: { upstream: meta.upstream ?? null, source: fields.source },
+    notice: meta.notice ?? null,
+  };
+}
+
 function collect(sources, metadata) {
   const components = [];
   const warnings = [];
+  const metaOf = (id) => {
+    if (!metadata.components?.[id]) {
+      warnings.push(`${id}: no entry in stack-metadata.yaml (using defaults)`);
+    }
+    return metadata.components?.[id] ?? {};
+  };
 
   for (const [repoName, repo] of Object.entries(REPOS)) {
-    const root = join(sources[repoName].path, "packages");
-    for (const file of walk(root).sort()) {
-      const raw = readFileSync(file, "utf8");
-      let pkg;
+    const source = sources[repoName];
+    const blob = (file) =>
+      `https://github.com/OKDP/${repoName}/blob/${source.head}/${relative(source.path, file)}`;
+
+    if (repo.components) {
+      const root = join(source.path, repo.components);
+      if (!exists(root)) {
+        warnings.push(`${repoName}: no ${repo.components}`);
+        continue;
+      }
+      for (const entry of readdirSync(root, { withFileTypes: true }).sort(
+        (a, b) => a.name.localeCompare(b.name),
+      )) {
+        const file = join(root, entry.name, "instance.yaml");
+        if (!entry.isDirectory() || !exists(file)) continue;
+        const instance = parse(readFileSync(file, "utf8")) ?? {};
+        const ref = bare(instance.chart);
+        // OKDP charts are listed from their own repository.
+        if (!instance.service || !ref || isOkdpChart(ref)) continue;
+        const version = String(instance.version);
+        const chart = {
+          name: instance.service,
+          version,
+          repository: ref,
+          origin: "upstream",
+        };
+        const values = join(root, entry.name, "values.yaml");
+        const text = exists(values) ? readFileSync(values, "utf8") : "";
+        const modules = [
+          { name: instance.service, charts: [chart], images: readImages(text) },
+        ];
+        const meta = metaOf(instance.service);
+        const primary = selectPrimary(
+          { name: instance.service },
+          modules,
+          meta,
+        );
+        components.push(
+          componentOf(
+            {
+              id: instance.service,
+              section: repo.section,
+              upstream: upstreamVersionOf(
+                { name: instance.service, tag: version },
+                primary,
+                meta.upstreamVersion,
+              ),
+              package: { repository: ref, tag: version },
+              primary,
+              protected: PROTECTED.test(text),
+              description: null,
+              modules,
+              source: blob(file),
+            },
+            meta,
+            warnings,
+          ),
+        );
+      }
+      continue;
+    }
+
+    const root = join(source.path, "packages");
+    for (const { group, dir } of chartDirs(root)) {
+      const file = join(dir, "Chart.yaml");
+      let chart;
       try {
-        pkg = parse(raw);
+        chart = parse(readFileSync(file, "utf8"));
       } catch (error) {
         warnings.push(
           `${relative(root, file)}: unparseable (${error.message})`,
         );
         continue;
       }
-      if (!pkg?.name || !pkg?.tag) continue;
+      if (!chart?.name || !chart?.version) continue;
+      if (chart.type === "library") continue;
 
-      const group = relative(root, file).split("/")[0];
       const section = repo.sections[group];
       if (!section) {
-        warnings.push(`${pkg.name}: unmapped group '${group}'`);
+        warnings.push(`${chart.name}: unmapped group '${group}'`);
         continue;
       }
 
-      const meta = metadata.components?.[pkg.name] ?? {};
-      const modules = (pkg.modules ?? []).map(readModule);
+      const own = ownFiles(dir)
+        .map((path) => readFileSync(path, "utf8"))
+        .join("\n");
+      const modules = readModules(dir, chart);
+      const images = readImages(own);
+      // Images set by the wrapper belong to the component, not to one
+      // upstream chart: attach them to a module named after the chart.
+      if (images.length) {
+        const main =
+          modules.find((module) => module.name === chart.name) ??
+          modules.find((module) => module.name === "main");
+        if (main) main.images.push(...images);
+        else modules.unshift({ name: chart.name, charts: [], images });
+      }
+      const meta = metaOf(chart.name);
+      const pkg = { name: chart.name, tag: String(chart.version) };
       const primary = selectPrimary(pkg, modules, meta);
-      const upstream = upstreamVersionOf(pkg, primary, meta.upstreamVersion);
-
-      if (!meta.upstreamVersion && upstream.version !== upstream.derived) {
-        warnings.push(
-          `${pkg.name}: derived upstream ${upstream.version} from ${upstream.source}, ` +
-            `package tag suggests ${upstream.derived}`,
-        );
+      const upstream = upstreamVersionOf(
+        pkg,
+        primary,
+        // appVersion is the upstream version; `v1.17.1` reads as 1.17.1.
+        meta.upstreamVersion ??
+          (chart.appVersion == null
+            ? null
+            : String(chart.appVersion).replace(/^v(?=\d)/, "")),
+      );
+      if (!meta.upstreamVersion && chart.appVersion) {
+        upstream.source = "chart appVersion";
       }
-      if (!metadata.components?.[pkg.name]) {
-        warnings.push(
-          `${pkg.name}: no entry in stack-metadata.yaml (using defaults)`,
-        );
-      }
 
-      components.push({
-        id: pkg.name,
-        name: meta.name ?? pkg.name,
-        section,
-        upstreamVersion: upstream.version,
-        upstreamVersionSource: upstream.source,
-        package: {
-          repository: `${repo.registry}/${pkg.name}`,
-          tag: String(pkg.tag),
-        },
-        provenance: provenanceOf(primary),
-        protected: pkg.protected === true,
-        description: meta.description ?? firstSentence(pkg.description),
-        primaryChart: primary.chart,
-        primaryImage: primary.image,
-        charts: modules.flatMap((module) => module.charts),
-        images: modules.flatMap((module) => module.images),
-        modules: modules.filter(
-          (module) => module.charts.length || module.images.length,
+      components.push(
+        componentOf(
+          {
+            id: chart.name,
+            section,
+            upstream,
+            package: {
+              repository: `${repo.registry}/${chart.name}`,
+              tag: String(chart.version),
+            },
+            primary,
+            protected: PROTECTED.test(own),
+            description: chart.description,
+            modules,
+            source: blob(file),
+          },
+          meta,
+          warnings,
         ),
-        links: {
-          upstream: meta.upstream ?? null,
-          source: `https://github.com/OKDP/${repoName}/blob/${sources[repoName].head}/${relative(sources[repoName].path, file)}`,
-        },
-        notice: meta.notice ?? null,
-      });
+      );
     }
   }
 

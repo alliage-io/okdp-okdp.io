@@ -36,10 +36,15 @@ npm run preview
 
 `/stack/<version>` lists every component shipped in an OKDP release, with its
 version, provenance and source links. The data is **generated**, not written by
-hand: `src/data/stack/okdp-1-0.yaml` is produced by `scripts/build-stack.mjs`
-from the KuboCD Package manifests in
+hand: `src/data/stack/okdp-<version>.yaml` is produced by `scripts/build-stack.mjs`
+from the Helm charts (`Chart.yaml`, `vendor.yaml`) in
 [`platform-packages`](https://github.com/OKDP/platform-packages) and
-[`sandbox-dependencies`](https://github.com/OKDP/sandbox-dependencies).
+[`sandbox-dependencies`](https://github.com/OKDP/sandbox-dependencies), plus the
+platform components that install an upstream chart directly
+(`gitops/platform/components/*/instance.yaml` in
+[`okdp-sandbox`](https://github.com/OKDP/okdp-sandbox)).
+`okdp-1-0.yaml` was generated from the KuboCD Package manifests of OKDP 1.0 and
+is kept as is: that generator version is in the Git history.
 
 The generator runs when a release is cut, never during `astro build`. Its output
 is committed, so the site build stays offline and deterministic, and every
@@ -48,15 +53,18 @@ version change lands as a reviewable diff.
 ### Regenerating
 
 ```bash
-node scripts/build-stack.mjs --stack 1.0
-git diff src/data/stack/   # expect no change unless a package actually moved
+node scripts/build-stack.mjs --stack 1.1
+git diff src/data/stack/   # expect no change unless a chart actually moved
 ```
 
-By default it clones both package repositories from `OKDP` at their current
+Do not regenerate `okdp-1-0.yaml` with this version of the generator: OKDP 1.0
+was built from KuboCD packages, which the repositories no longer contain.
+
+By default it clones the three repositories from `OKDP` at their current
 `main`. To generate from a local checkout instead:
 
 ```bash
-node scripts/build-stack.mjs --stack 1.0 \
+node scripts/build-stack.mjs --stack 1.1 \
   --repo platform-packages=../platform-packages
 ```
 
@@ -76,11 +84,11 @@ stays frozen at what that release contained.
 
 ### Editing what is shown
 
-Versions, charts, images and provenance are all derived from the package
-manifests. Do not edit the generated file: re-run the script.
+Versions, charts, images and provenance are all derived from the charts and
+their `vendor.yaml`. Do not edit the generated file: re-run the script.
 
 Everything that cannot be derived (display names, project homepages, logos, and
-the occasional upstream version a package tag cannot express) lives in
+the occasional upstream version a chart appVersion cannot express) lives in
 `scripts/stack-metadata.yaml`. That is the file to edit.
 
 ## Preview deployments from forks
