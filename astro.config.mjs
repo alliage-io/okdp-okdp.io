@@ -33,12 +33,23 @@ export default defineConfig({
       ],
       sidebar: [
         {
-          label: "Guides",
-          items: [{ autogenerate: { directory: "guides" } }],
+          label: "Admin",
+          translations: { fr: "Administration" },
+          items: [{ autogenerate: { directory: "admin-guide" } }],
         },
         {
-          label: "Reference",
-          items: [{ autogenerate: { directory: "reference" } }],
+          label: "User",
+          translations: { fr: "Utilisateur" },
+          items: [{ autogenerate: { directory: "user-guide" } }],
+        },
+        {
+          label: "Prerequisites",
+          translations: { fr: "Prérequis" },
+          items: [
+            {
+              autogenerate: { directory: "installation-requirements" },
+            },
+          ],
         },
       ],
     }),
