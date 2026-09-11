@@ -432,10 +432,6 @@
             {
               "text": "Gestion des utilisateurs et groupes locaux (via Kubauth)",
               "status": "complete"
-            },
-            {
-              "text": "Gestion du membership des projets",
-              "status": "inProgress"
             }
           ]
         },
@@ -498,15 +494,15 @@
             },
             {
               "text": "Chart Helm d'installation du Control Plane (okdp-platform)",
-              "status": "inProgress"
+              "status": "complete"
             },
             {
               "text": "Admin Guide : Déploiement & Configuration plateforme",
-              "status": "inProgress"
+              "status": "complete"
             },
             {
               "text": "User Guide : Utilisation des modules & services via la console",
-              "status": "inProgress"
+              "status": "complete"
             }
           ]
         }
@@ -558,6 +554,10 @@
         {
           "title": "Plateforme",
           "features": [
+            {
+              "text": "Gestion du membership des projets",
+              "status": "inProgress"
+            },
             {
               "text": "RBAC Plateforme — Gestion fine des permissions",
               "status": "todo"
