@@ -132,4 +132,4 @@ Argo CD gère ensuite `argocd/` lui-même, les valeurs de la plateforme, et une 
 | Supprimer un projet     |                                                                                                              | `projects/<p>/`             |
 | Modifier le catalogue   | `platform/catalog.yaml`                                                                                      |                             |
 
-Chaque modification est un commit, `okdp: <action> <project>/<instance> by <user>`. La console n'écrit jamais les composants de plateforme.
+Chaque modification est un commit, `okdp: <action> <project>/<instance> by <user>`, avec une ligne `Co-Authored-By: <nom> <<email>>` qui nomme l'utilisateur connecté. Cette ligne nécessite la claim `email` dans le jeton d'accès (scope client Keycloak `email`, et `profile` pour le nom) ; sans email, le commit ne nomme l'utilisateur que dans son titre. La console n'écrit jamais les composants de plateforme.

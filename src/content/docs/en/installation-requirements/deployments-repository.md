@@ -132,4 +132,4 @@ Argo CD then manages `argocd/` itself, the platform values, and one Application 
 | Delete a project      |                                                                                                             | `projects/<p>/`        |
 | Edit the catalog      | `platform/catalog.yaml`                                                                                     |                        |
 
-Each change is one commit, `okdp: <action> <project>/<instance> by <user>`. The console never writes the platform components.
+Each change is one commit, `okdp: <action> <project>/<instance> by <user>`, with a `Co-Authored-By: <name> <<email>>` trailer naming the logged-in user. The trailer needs the `email` claim in the access token (Keycloak `email` client scope, and `profile` for the name); without an email, the commit only names the user in its subject. The console never writes the platform components.
