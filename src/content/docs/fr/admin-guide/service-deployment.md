@@ -5,7 +5,7 @@ description: Déploiement de services à l'aide du plan de contrôle OKDP et de 
 
 Le plan de contrôle OKDP permet à l’administrateur de déployer, de supprimer et de surveiller des services, ce qui constitue son objectif principal.
 
-Dans OKDP, un service est une [version KuboCD](/fr/installation/index#kubocd-release) hébergée sur un référentiel externe défini dans votre contexte et contenant un `helmRelease` comme couche sous-jacente.
+Dans OKDP, un service est une [version KuboCD](/fr/installation-requirements#version-kubocd) hébergée sur un référentiel externe défini dans votre contexte et contenant un `helmRelease` comme couche sous-jacente.
 
 Le déploiement d’un service dans l’interface utilisateur suit toujours le même schéma. Sur la page d’instance du service, cliquez sur `Deploy`, puis suivez les 3 étapes suivantes :
 
@@ -33,7 +33,7 @@ Dans le cas contraire, le déploiement d'une instance Hive Metastore est très s
 
 ![Hive1](../../assets/hive1.png)
 
-Sélectionnez ensuite une connexion au serveur de base de données et une connexion au fournisseur de stockage S3. S’ils n’existent pas, vous pouvez les créer en cliquant sur `+ New connection` et en suivant les étapes décrites dans [Gestion des connexions et des secrets externes](/fr/admin-guide/connections-and-external-secrets-management#creation-de-connexions). Saisissez les quantités de ressources et choisissez un secret Kubernetes pour l’authentification du stockage S3, ainsi que, de manière facultative, un compartiment (bucket) qui limite le Hive Metastore. Une fois cela fait, cliquez sur `CREATE`.
+Sélectionnez ensuite une connexion au serveur de base de données et une connexion au fournisseur de stockage S3. S’ils n’existent pas, vous pouvez les créer en cliquant sur `+ New connection` et en suivant les étapes décrites dans [Gestion des connexions et des secrets externes](/fr/admin-guide/connections-and-external-secrets-management#création-de-connexions). Saisissez les quantités de ressources et choisissez un secret Kubernetes pour l’authentification du stockage S3, ainsi que, de manière facultative, un compartiment (bucket) qui limite le Hive Metastore. Une fois cela fait, cliquez sur `CREATE`.
 
 ![Hive2](../../assets/hive2.png)
 

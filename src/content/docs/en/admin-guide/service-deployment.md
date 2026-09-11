@@ -5,7 +5,7 @@ description: Service deployment using the OKDP control plane and using yaml file
 
 The OKDP control plane enables the administrator to deploy, delete, and monitor services, being its main goal.
 
-A service in OKDP is a [KuboCD release](/en/installation/index#kubocd_release) hosted on an external repository which has been set in your context and containing a `helmRelease` as an underlying layer.
+A service in OKDP is a [KuboCD release](/en/installation-requirements#kubocd-release) hosted on an external repository which has been set in your context and containing a `helmRelease` as an underlying layer.
 
 Service deployment in the user interface always follows the same pattern. On the instance page of the service, click on `Deploy` and then 3 stages follow:
 
