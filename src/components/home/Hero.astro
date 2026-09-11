@@ -1,5 +1,7 @@
 ---
+import { getRelativeLocaleUrl } from "astro:i18n";
 import Countdown from "@/components/home/Countdown.astro";
+import { defaultLocale, type Locale } from "@/i18n/config";
 import type { HomeTranslations } from "@/i18n/translations";
 
 interface Props {
@@ -7,6 +9,8 @@ interface Props {
 }
 
 const { content } = Astro.props;
+const locale = (Astro.currentLocale ?? defaultLocale) as Locale;
+const docsUrl = getRelativeLocaleUrl(locale, "/installation-requirements");
 ---
 
 <section class="from-accent to-background bg-linear-to-b pt-48 pb-20">
@@ -20,7 +24,7 @@ const { content } = Astro.props;
       <h1 class="text-gradient mb-6">{content.hero.title}</h1>
       <p class="text-text-light mb-8 text-xl">{content.hero.subtitle}</p>
       <div class="mb-12 flex flex-col justify-center gap-4 sm:flex-row">
-        <a href="https://github.com/OKDP/" class="btn btn-primary">
+        <a href={docsUrl} class="btn btn-primary">
           {content.hero.ctaPrimary}
         </a>
         <a

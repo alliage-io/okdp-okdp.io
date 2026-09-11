@@ -12,7 +12,7 @@ interface Props {
 const { content, desktop = false, mobile = false } = Astro.props;
 const locale = (Astro.currentLocale ?? defaultLocale) as Locale;
 const homeUrl = getRelativeLocaleUrl(locale, "/");
-const docsUrl = getRelativeLocaleUrl(locale, "/guides/example");
+const docsUrl = getRelativeLocaleUrl(locale, "/installation-requirements");
 const stackUrl = getRelativeLocaleUrl(locale, "/stack/");
 const isHome =
   Astro.url.pathname === "/" ||
@@ -73,14 +73,13 @@ const homeSectionUrl = (section: string) =>
         {content.nav.community}
       </a>
     </li>
-    <!-- TODO: Documentation nav link, to uncomment when we'll be ready to release the docs. -->
-    <!-- <li class="ms-auto">
+    <li class="ms-auto">
       <a
         href={docsUrl}
         class="bg-primary shadow-primary/20 hover:bg-primary-dark block rounded-lg px-3 py-2 whitespace-nowrap text-white no-underline shadow-lg hover:text-white"
       >
         {content.nav.documentation}
       </a>
-    </li> -->
+    </li>
   </ul>
 </nav>
