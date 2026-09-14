@@ -94,9 +94,9 @@ components:
     name: External Secrets Operator
     upstream: https://external-secrets.io
     description: Generated passwords and cross-namespace credentials for every OKDP chart (API external-secrets.io/v1).
-  gitea:
-    name: Gitea
-    upstream: https://about.gitea.com
+  forgejo:
+    name: Forgejo
+    upstream: https://forgejo.org
     description: Git server hosting the deployments repository of the sandbox.
   ingress-nginx:
     name: Ingress NGINX
