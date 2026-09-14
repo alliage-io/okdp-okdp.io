@@ -30,15 +30,15 @@ Le catalogue de services OKDP s'affiche dans la barre d'outils de gauche lorsque
 - Data Catalog
   - hive-metastore
   - Polaris
-- Interactive Query
+- Query Engine
   - Trino
-- SQL & BI
+- BI & Dataviz
   - Superset
 - Notebooks
   - JupyterHub
-- Data Engineering
+- Workflows
   - Airflow
-- Spark
+- Data Engineering
   - Spark History Server
 
 Le service d'application Spark utilisant l'opérateur Spark n'apparaît pas ici dans le catalogue de services ; il est accessible depuis le tableau de bord `Views`.
@@ -60,10 +60,11 @@ Dans la section `Parameters`, vous pouvez modifier la description et la couleur 
 Pour créer une vue personnalisée, cliquez sur l'onglet `New view`, puis donnez un nom à la vue, ajoutez éventuellement une description, et choisissez une catégorie parmi les suivantes :
 
 - `Lakehouse`
+- `Workflows`
 - `Data Engineering`
 - `Notebooks`
-- `SQL & BI`
-- `Machine Learning`
+- `BI & Dataviz`
+- `ML & AI`
 
 Choisissez ensuite une icône. Si la case `Show in the views lateral menu` n'est pas cochée, la vue n'apparaîtra pas dans le menu principal, sous l'onglet `Views`.
 

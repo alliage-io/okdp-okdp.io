@@ -33,15 +33,15 @@ It initially contains the following sections:
 - Data Catalog
   - hive-metastore
   - Polaris
-- Interactive Query
+- Query Engine
   - Trino
-- SQL & BI
+- BI & Dataviz
   - Superset
 - Notebooks
   - JupyterHub
-- Data Engineering
+- Workflows
   - Airflow
-- Spark
+- Data Engineering
   - Spark History Server
 
 The Spark Application Service using the Spark operator is not present in the service catalog here; it is accessed in the `Views` dashboard.
@@ -63,10 +63,11 @@ In the `Settings` section, the project description and color can be modified, as
 To create a custom view, click on the tab `New view`, then give a name to the view, optionally a description, and choose a category from the following:
 
 - `Lakehouse`
+- `Workflows`
 - `Data Engineering`
 - `Notebooks`
-- `SQL & BI`
-- `Machine Learning`
+- `BI & Dataviz`
+- `ML & AI`
 
 Then pick an icon. If the box `Show in the views lateral menu` is not ticked, the view will not be visible in the main menu under the `Views` tab.
 
