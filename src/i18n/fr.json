@@ -436,7 +436,7 @@
               "status": "complete"
             },
             {
-              "text": "Gestion des utilisateurs et groupes locaux (via Kubauth)",
+              "text": "Gestion des utilisateurs et groupes (via Keycloak)",
               "status": "complete"
             }
           ]

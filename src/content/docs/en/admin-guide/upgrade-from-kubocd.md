@@ -44,8 +44,15 @@ The Helm release of an instance is `<project>-<instance>` (for example `demo-tri
 ## Users and OIDC clients
 
 - JupyterHub: the cookie secret and the auth-state keys are generated anew by ESO (Secret `<release>-hub-generated`): users sign in again.
-- With `clientProvisioning: kubauth`, the OIDC client secret is generated once by ESO: every existing kubauth client gets a new secret, once. Set `global.okdp.oidc.kubauth.namespace` in the platform values: the kubauth component takes its privileged client namespace from it.
 - Polaris: the root credentials are generated into `<release>-root` and kept when the instance is deleted. A realm already bootstrapped in the database knows the former credentials of `creds-<release>-root`: keep a copy of that Secret.
+
+## kubauth is removed
+
+OKDP no longer ships kubauth: identity is Keycloak only. `clientProvisioning` accepts `existing` (clients created in Keycloak beforehand) or `dcr` (dynamic client registration); `kubauth` is no longer a valid value.
+
+A platform that uses kubauth must move its users, groups and OIDC clients to Keycloak, and set `clientProvisioning` to `existing` or `dcr`, **before** upgrading. No migration tool is provided: recreate them in Keycloak by hand or with your own scripts. Users sign in again afterwards, and the services get new client secrets. Once the users and groups are in Keycloak, the console Identity page manages them again, provided the control-plane server has Keycloak admin credentials (see [Identity provider](/en/installation-requirements#identity-provider)).
+
+With `dcr`, the OIDC client of a service is registered in Keycloak by a Job of its chart. Deleting the service does not remove that client from Keycloak, with Flux as with Argo CD: delete it in the Keycloak console.
 
 ## Parameter changes
 

@@ -114,9 +114,6 @@ components:
     # Keycloak. The version users care about is the one of the official image
     # (quay.io/keycloak/keycloak), run in production mode.
     upstreamVersion: 26.7.4
-  kubauth:
-    name: kubauth
-    description: OIDC authentication for kubectl against the platform identity provider.
   local-secrets-provider:
     name: Local secrets provider
     description: Sandbox credentials as Secrets replicated to every namespace, standing in for a real vault.

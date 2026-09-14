@@ -430,7 +430,7 @@
               "status": "complete"
             },
             {
-              "text": "Local users and groups management (via Kubauth)",
+              "text": "Users and groups management (via Keycloak)",
               "status": "complete"
             }
           ]

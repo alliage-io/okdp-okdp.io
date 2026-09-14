@@ -44,8 +44,15 @@ La release Helm d'une instance est `<project>-<instance>` (par exemple `demo-tri
 ## Utilisateurs et clients OIDC
 
 - JupyterHub : le secret des cookies et les clés d'état d'authentification sont générés de nouveau par ESO (secret `<release>-hub-generated`) : les utilisateurs doivent se reconnecter.
-- Avec `clientProvisioning: kubauth`, le secret du client OIDC est généré une seule fois par ESO : chaque client kubauth existant reçoit un nouveau secret, une fois. Renseignez `global.okdp.oidc.kubauth.namespace` dans les valeurs de la plateforme : le composant kubauth en tire son namespace de clients privilégié.
 - Polaris : les identifiants root sont générés dans `<release>-root` et conservés lorsque l'instance est supprimée. Un domaine déjà initialisé dans la base de données connaît les anciens identifiants de `creds-<release>-root` : gardez une copie de ce secret.
+
+## kubauth est retiré
+
+OKDP ne fournit plus kubauth : l'identité repose uniquement sur Keycloak. `clientProvisioning` accepte `existing` (clients créés au préalable dans Keycloak) ou `dcr` (enregistrement dynamique des clients) ; `kubauth` n'est plus une valeur valide.
+
+Une plateforme qui utilise kubauth doit déplacer ses utilisateurs, ses groupes et ses clients OIDC vers Keycloak, et passer `clientProvisioning` à `existing` ou `dcr`, **avant** la mise à niveau. Aucun outil de migration n'est fourni : recréez-les dans Keycloak à la main ou avec vos propres scripts. Les utilisateurs se reconnectent ensuite, et les services reçoivent de nouveaux secrets clients. Une fois les utilisateurs et les groupes dans Keycloak, la page Identity de la console les gère de nouveau, à condition que le serveur du control plane dispose d'identifiants d'administration Keycloak (voir [Fournisseur d’identité](/fr/installation-requirements#fournisseur-didentité)).
+
+Avec `dcr`, le client OIDC d'un service est enregistré dans Keycloak par un Job de son chart. La suppression du service ne retire pas ce client de Keycloak, avec Flux comme avec Argo CD : supprimez-le dans la console Keycloak.
 
 ## Changements de paramètres
 
