@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: "pages"
@@ -15,6 +15,10 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      # peaceiris/actions-gh-pages pushes the site to the gh-pages branch with
+      # github_token (it does not use the checkout credentials).
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v6
