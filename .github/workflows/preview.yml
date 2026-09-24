@@ -41,6 +41,8 @@ jobs:
         id: preview
         env:
           RAW_REF: ${{ github.ref_name }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
         run: |
           slug=$(printf '%s' "$RAW_REF" \
             | tr '[:upper:]' '[:lower:]' \
@@ -52,8 +54,8 @@ jobs:
             slug="preview"
           fi
 
-          site="https://${{ github.repository_owner }}.github.io"
-          base="/${{ github.event.repository.name }}/previews/$slug/"
+          site="https://${REPO_OWNER}.github.io"
+          base="/${REPO_NAME}/previews/$slug/"
 
           echo "slug=$slug" >> "$GITHUB_OUTPUT"
           echo "path=previews/$slug" >> "$GITHUB_OUTPUT"
@@ -82,10 +84,13 @@ jobs:
           keep_files: true
 
       - name: Publish workflow summary
+        env:
+          BRANCH: ${{ github.ref_name }}
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
         run: |
           echo "## Preview published" >> "$GITHUB_STEP_SUMMARY"
           echo >> "$GITHUB_STEP_SUMMARY"
-          echo "- Branch: \`${{ github.ref_name }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Preview URL: ${{ steps.preview.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Branch: \`${BRANCH}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Preview URL: ${PREVIEW_URL}" >> "$GITHUB_STEP_SUMMARY"
           echo >> "$GITHUB_STEP_SUMMARY"
           echo "Make sure GitHub Pages is enabled in the fork and configured to serve from the \`gh-pages\` branch." >> "$GITHUB_STEP_SUMMARY"
